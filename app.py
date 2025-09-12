@@ -60,7 +60,7 @@ def extract_references_with_llm(text):
         
         # Criar o agente Pydantic AI
         agent = Agent(
-            'gemini-2.0-flash-exp',  # Modelo Gemini 2.0 Flash
+            'gemini-2.5-pro',  # Modelo Gemini 2.0 Flash
             result_type=ReferencesResponse,
             system_prompt="""
             Você é um especialista em análise de artigos científicos. 
@@ -80,7 +80,7 @@ def extract_references_with_llm(text):
         )
         
         # Limitar o texto para evitar exceder limites da API
-        limited_text = text[:15000]  # Gemini tem limite maior que GPT
+        limited_text = text[:150000]  # Gemini tem limite maior que GPT
         
         # Executar o agente
         result = agent.run_sync(f"Extraia as referências bibliográficas do seguinte texto de artigo científico:\n\n{limited_text}")
@@ -164,9 +164,9 @@ def main():
     load_dotenv()  # Carrega variáveis de ambiente do arquivo .env
     
     # Verificar se a chave da API está configurada
-    if not os.getenv("GOOGLE_API_KEY"):
+    if not os.getenv("GEMINI_API_KEY"):
         print("⚠️  AVISO: Chave da API Google não encontrada!")
-        print("Crie um arquivo .env com: GOOGLE_API_KEY=sua_chave_aqui")
+        print("Crie um arquivo .env com: GEMINI_API_KEY=sua_chave_aqui")
         print("Obtenha sua chave em: https://aistudio.google.com/app/apikey")
     
     interface = create_interface()
