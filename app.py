@@ -1,5 +1,5 @@
 import gradio as gr
-import fitz  # PyMuPDF
+import pymupdf  # PyMuPDF
 import pandas as pd
 import openai
 import os
@@ -12,7 +12,7 @@ def extract_pdf_text(pdf_file):
     """Extrai texto e metadados básicos do PDF"""
     try:
         # Abrir o PDF com PyMuPDF
-        doc = fitz.open(stream=pdf_file, filetype="pdf")
+        doc = pymupdf.open(stream=pdf_file, filetype="pdf")
         
         # Extrair texto de todas as páginas
         full_text = ""
