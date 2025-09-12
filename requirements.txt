@@ -3,3 +3,5 @@ pymupdf
 pandas
 openai
 python-dotenv
+pydantic-ai
+google-generativeai
