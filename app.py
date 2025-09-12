@@ -85,15 +85,15 @@ def extract_references_with_llm(text, model_name):
             - pages: páginas (se disponível)
             - doi: DOI (se disponível)
             
-            Seja preciso e extraia apenas referências válidas e completas.
+            Seja preciso e extraia referências completas.
             """
         )
         
         # Ajustar limite de texto baseado no modelo
         if model_name.startswith('gemini'):
-            limited_text = text[:150000]  # Gemini tem limite maior
+            limited_text = text[:1500000]  # Gemini tem limite maior
         else:
-            limited_text = text[:50000]   # OpenAI tem limite menor
+            limited_text = text[:500000]   # OpenAI tem limite menor
         
         # Executar o agente
         result = agent.run_sync(f"Extraia as referências bibliográficas do seguinte texto de artigo científico:\n\n{limited_text}")
