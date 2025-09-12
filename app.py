@@ -117,55 +117,71 @@ def extract_references_with_llm(text, model_name):
         return [{"error": f"Erro ao processar com LLM ({model_name}): {str(e)}"}]
 
 def extract_references_with_regex(text):
-    """Extrai referências usando expressões regulares"""
+    """Extrai referências usando expressões regulares em todo o texto"""
     try:
-        # Encontrar a seção de referências
-        references_section = ""
-        
-        # Padrões para identificar início da seção de referências
-        ref_patterns = [
-            r'(?i)references?\s*\n',
-            r'(?i)bibliography\s*\n',
-            r'(?i)literatura\s+citada\s*\n',
-            r'(?i)referências\s+bibliográficas\s*\n'
-        ]
-        
-        for pattern in ref_patterns:
-            match = re.search(pattern, text)
-            if match:
-                references_section = text[match.end():]
-                break
-        
-        if not references_section:
-            # Se não encontrou seção específica, usar últimos 30% do texto
-            references_section = text[int(len(text) * 0.7):]
-        
-        # Padrões para extrair referências individuais
-        # Padrão básico: Autor(es). (Ano). Título. Journal/Editora.
-        ref_pattern = r'([A-Z][^.]*?)\.\s*\((\d{4})\)\.\s*([^.]+)\.\s*([^.]+?)(?:\.|$)'
-        
-        # Padrão alternativo para referências numeradas
-        numbered_pattern = r'\[\d+\]\s*([A-Z][^.]*?)\.\s*\((\d{4})\)\.\s*([^.]+)\.\s*([^.]+?)(?:\.|$)'
-        
-        # Padrão para referências com formato diferente
-        alt_pattern = r'([A-Z][A-Za-z\s,&]+)\s+\((\d{4})\)[.,]\s*([^.]+)[.,]\s*([^.]+?)(?:\.|$)'
-        
         references = []
         
-        # Tentar diferentes padrões
-        for pattern in [ref_pattern, numbered_pattern, alt_pattern]:
-            matches = re.findall(pattern, references_section, re.MULTILINE | re.DOTALL)
+        # Padrões melhorados para extrair referências individuais
+        patterns = [
+            # Padrão 1: Autor(es). (Ano). Título. Journal/Editora.
+            r'^([A-Z][A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
             
-            for match in matches:
-                if len(match) >= 4:
-                    # Limpar e processar os dados extraídos
-                    authors = match[0].strip()
-                    year = match[1].strip()
-                    title = match[2].strip()
-                    journal = match[3].strip()
+            # Padrão 2: Referências numeradas [1] Autor...
+            r'^\[\d+\]\s*([A-Z][A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
+            
+            # Padrão 3: Autor, A. (Ano). Título. Journal.
+            r'^([A-Z][A-Za-z\s,&.-]+?)\s+\((\d{4}[a-z]?)\)[.,]\s*([^.]+?)[.,]\s*([^.]+?)\.?\s*$',
+            
+            # Padrão 4: Autor et al. (Ano) Título. Journal
+            r'^([A-Z][A-Za-z\s,&.-]*?et\s+al\.?)\s*\((\d{4}[a-z]?)\)[.,]?\s*([^.]+?)[.,]\s*([^.]+?)\.?\s*$',
+            
+            # Padrão 5: Sobrenome, Nome (Ano). Título. Journal.
+            r'^([A-Z][a-z]+,\s*[A-Z][A-Za-z\s,&.-]*?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
+            
+            # Padrão 6: Múltiplos autores com &
+            r'^([A-Z][A-Za-z\s,&.-]+?&[A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$'
+        ]
+        
+        # Dividir texto em linhas
+        lines = text.split('\n')
+        
+        # Processar cada linha
+        for line_num, line in enumerate(lines):
+            line = line.strip()
+            
+            # Pular linhas muito curtas ou que não começam com letra maiúscula
+            if len(line) < 20 or not line[0].isupper():
+                continue
+            
+            # Pular linhas que são claramente títulos de seção
+            if re.match(r'^(abstract|introduction|methods?|results?|discussion|conclusion|references?|bibliography|acknowledgments?)\.?\s*$', line, re.IGNORECASE):
+                continue
+            
+            # Tentar cada padrão
+            for pattern in patterns:
+                match = re.match(pattern, line, re.MULTILINE | re.IGNORECASE)
+                
+                if match and len(match.groups()) >= 4:
+                    authors = match.group(1).strip()
+                    year = match.group(2).strip()
+                    title = match.group(3).strip()
+                    journal = match.group(4).strip()
+                    
+                    # Validações adicionais
+                    # Verificar se tem pelo menos um autor válido
+                    if not re.search(r'[A-Z][a-z]+', authors):
+                        continue
+                    
+                    # Verificar se o título não é muito curto
+                    if len(title) < 10:
+                        continue
+                    
+                    # Verificar se não é uma linha de cabeçalho ou rodapé
+                    if re.search(r'(page|vol|volume|number|issue)\s*\d+', line, re.IGNORECASE):
+                        continue
                     
                     # Extrair DOI se presente
-                    doi_match = re.search(r'doi[:\s]*([^\s]+)', journal, re.IGNORECASE)
+                    doi_match = re.search(r'doi[:\s]*([^\s,]+)', journal, re.IGNORECASE)
                     doi = doi_match.group(1) if doi_match else ""
                     
                     # Extrair volume e páginas
@@ -173,26 +189,43 @@ def extract_references_with_regex(text):
                     volume = vol_pages_match.group(1) if vol_pages_match else ""
                     pages = vol_pages_match.group(2) if vol_pages_match else ""
                     
-                    references.append({
+                    # Limpar campos
+                    authors = re.sub(r'\s+', ' ', authors)
+                    title = re.sub(r'\s+', ' ', title)
+                    journal = re.sub(r'\s+', ' ', journal)
+                    
+                    reference = {
                         "authors": authors,
                         "title": title,
                         "journal": journal,
                         "year": year,
                         "volume": volume,
                         "pages": pages,
-                        "doi": doi
-                    })
+                        "doi": doi,
+                        "line_number": line_num + 1  # Para debug
+                    }
+                    
+                    references.append(reference)
+                    break  # Parar na primeira correspondência para esta linha
         
-        # Remover duplicatas baseadas no título
-        seen_titles = set()
+        # Remover duplicatas baseadas no título e ano
+        seen_refs = set()
         unique_references = []
-        for ref in references:
-            title_key = ref["title"].lower().strip()
-            if title_key not in seen_titles and len(title_key) > 10:
-                seen_titles.add(title_key)
-                unique_references.append(ref)
         
-        return unique_references[:50]  # Limitar a 50 referências para evitar ruído
+        for ref in references:
+            # Criar chave única baseada em título e ano
+            key = (ref["title"].lower().strip()[:50], ref["year"])
+            
+            if key not in seen_refs:
+                seen_refs.add(key)
+                # Remover campo de debug antes de retornar
+                ref_clean = {k: v for k, v in ref.items() if k != "line_number"}
+                unique_references.append(ref_clean)
+        
+        # Ordenar por ano (mais recente primeiro)
+        unique_references.sort(key=lambda x: x.get("year", "0"), reverse=True)
+        
+        return unique_references[:100]  # Limitar a 100 referências
         
     except Exception as e:
         return [{"error": f"Erro na extração por regex: {str(e)}"}]
@@ -200,69 +233,44 @@ def extract_references_with_regex(text):
 def create_highlighted_text(text, regex_references):
     """Cria HTML com texto destacado onde foram encontradas referências por regex"""
     try:
-        # Encontrar a seção de referências
-        references_section = ""
-        section_start = 0
+        # Dividir texto em linhas
+        lines = text.split('\n')
+        highlighted_lines = []
         
-        # Padrões para identificar início da seção de referências
-        ref_patterns = [
-            r'(?i)references?\s*\n',
-            r'(?i)bibliography\s*\n',
-            r'(?i)literatura\s+citada\s*\n',
-            r'(?i)referências\s+bibliográficas\s*\n'
-        ]
-        
-        for pattern in ref_patterns:
-            match = re.search(pattern, text)
-            if match:
-                section_start = match.start()
-                references_section = text[match.end():]
-                break
-        
-        if not references_section:
-            # Se não encontrou seção específica, usar últimos 30% do texto
-            section_start = int(len(text) * 0.7)
-            references_section = text[section_start:]
-        
-        # Criar HTML base
-        html_text = text.replace('\n', '<br>')
-        
-        # Cores para diferentes tipos de matches
-        colors = ['#ffeb3b', '#4caf50', '#2196f3', '#ff9800', '#9c27b0']
-        
-        # Padrões para destacar
+        # Padrões para destacar (mesmos da extração)
         patterns = [
-            (r'([A-Z][^.]*?)\.\s*\((\d{4})\)\.\s*([^.]+)\.\s*([^.]+?)(?:\.|$)', 'Padrão básico'),
-            (r'\[\d+\]\s*([A-Z][^.]*?)\.\s*\((\d{4})\)\.\s*([^.]+)\.\s*([^.]+?)(?:\.|$)', 'Padrão numerado'),
-            (r'([A-Z][A-Za-z\s,&]+)\s+\((\d{4})\)[.,]\s*([^.]+)[.,]\s*([^.]+?)(?:\.|$)', 'Padrão alternativo'),
-            (r'(?i)references?\s*\n', 'Seção de referências'),
-            (r'(?i)bibliography\s*\n', 'Bibliografia')
+            r'^([A-Z][A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
+            r'^\[\d+\]\s*([A-Z][A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
+            r'^([A-Z][A-Za-z\s,&.-]+?)\s+\((\d{4}[a-z]?)\)[.,]\s*([^.]+?)[.,]\s*([^.]+?)\.?\s*$',
+            r'^([A-Z][A-Za-z\s,&.-]*?et\s+al\.?)\s*\((\d{4}[a-z]?)\)[.,]?\s*([^.]+?)[.,]\s*([^.]+?)\.?\s*$',
+            r'^([A-Z][a-z]+,\s*[A-Z][A-Za-z\s,&.-]*?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
+            r'^([A-Z][A-Za-z\s,&.-]+?&[A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$'
         ]
         
-        # Aplicar destaques
-        for i, (pattern, description) in enumerate(patterns):
-            color = colors[i % len(colors)]
-            
-            # Encontrar matches no texto da seção de referências
-            section_html = references_section.replace('\n', '<br>')
-            matches = list(re.finditer(pattern, references_section, re.MULTILINE | re.DOTALL))
-            
-            # Destacar matches (processar de trás para frente para não afetar posições)
-            for match in reversed(matches):
-                start, end = match.span()
-                matched_text = references_section[start:end]
-                highlighted = f'<span style="background-color: {color}; padding: 2px; border-radius: 3px;" title="{description}">{matched_text.replace(chr(10), "<br>")}</span>'
-                
-                # Calcular posição no texto completo
-                full_start = section_start + start
-                full_end = section_start + end
-                
-                # Substituir no HTML completo
-                before = html_text[:full_start].replace('\n', '<br>')
-                after = html_text[full_end:].replace('\n', '<br>')
-                html_text = before + highlighted + after
+        colors = ['#ffeb3b', '#4caf50', '#2196f3', '#ff9800', '#9c27b0', '#e91e63']
         
-        # Criar HTML final com estilo
+        # Processar cada linha
+        for line in lines:
+            original_line = line
+            line_stripped = line.strip()
+            
+            # Verificar se a linha corresponde a algum padrão
+            matched = False
+            for i, pattern in enumerate(patterns):
+                if re.match(pattern, line_stripped, re.MULTILINE | re.IGNORECASE):
+                    if len(line_stripped) >= 20 and line_stripped[0].isupper():
+                        color = colors[i % len(colors)]
+                        highlighted_line = f'<span style="background-color: {color}; padding: 2px; border-radius: 3px; display: block; margin: 1px 0;" title="Padrão {i+1}">{original_line}</span>'
+                        highlighted_lines.append(highlighted_line)
+                        matched = True
+                        break
+            
+            if not matched:
+                highlighted_lines.append(original_line)
+        
+        # Criar HTML final
+        html_content = '<br>'.join(highlighted_lines)
+        
         styled_html = f"""
         <div style="
             font-family: 'Courier New', monospace;
@@ -280,12 +288,14 @@ def create_highlighted_text(text, regex_references):
                 📄 Texto Extraído com Destaques das Referências
             </div>
             <div style="margin-bottom: 15px; font-size: 11px; color: #666;">
-                <span style="background-color: #ffeb3b; padding: 2px;">■</span> Padrão básico &nbsp;
-                <span style="background-color: #4caf50; padding: 2px;">■</span> Padrão numerado &nbsp;
-                <span style="background-color: #2196f3; padding: 2px;">■</span> Padrão alternativo &nbsp;
-                <span style="background-color: #ff9800; padding: 2px;">■</span> Seção referências
+                <span style="background-color: #ffeb3b; padding: 2px;">■</span> Padrão 1 &nbsp;
+                <span style="background-color: #4caf50; padding: 2px;">■</span> Padrão 2 &nbsp;
+                <span style="background-color: #2196f3; padding: 2px;">■</span> Padrão 3 &nbsp;
+                <span style="background-color: #ff9800; padding: 2px;">■</span> Padrão 4 &nbsp;
+                <span style="background-color: #9c27b0; padding: 2px;">■</span> Padrão 5 &nbsp;
+                <span style="background-color: #e91e63; padding: 2px;">■</span> Padrão 6
             </div>
-            {html_text}
+            {html_content}
         </div>
         """
         
