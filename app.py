@@ -124,7 +124,7 @@ def extract_references_with_regex(text):
         # Padrões melhorados para extrair referências individuais
         patterns = [
             # Padrão 0: Referências numeradas com ponto (ex: 46. Autor et al. Título. Journal vol, pages (ano).)
-            r'^\d+\.\s*([A-Z][A-Za-z\s,&.-]*?et\s+al\.?|[A-Z][A-Za-z\s,&.-]+?)\.\s*([^.]+?)\.\s*([^.]+?)\s+(\d+),?\s*[\d–-]+\s*\((\d{4})\)\.',
+            r'^\d+\.\s*([A-Z][A-Za-z\s,&.-]*?(et\s+al\.)*?|[A-Z][A-Za-z\s,&.-:\d\?]+?\(\);)\.\s*([^.]+?)\.\s*([^.]+?)\s+(\d+),?\s*[\d–-]+\s*\((\d{4})\)\.\s*$',
             
             # Padrão 1: Autor(es). (Ano). Título. Journal/Editora.
             r'^([A-Z][A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
@@ -149,85 +149,75 @@ def extract_references_with_regex(text):
         lines = text.split('\n')
         
         # Processar cada linha
-        for line_num, line in enumerate(lines):
-            line = line.strip()
             
-            # Pular linhas muito curtas ou que não começam com letra maiúscula
-            if len(line) < 20 or not line[0].isupper():
-                continue
-            
-            # Pular linhas que são claramente títulos de seção
-            if re.match(r'^(abstract|introduction|methods?|results?|discussion|conclusion|references?|bibliography|acknowledgments?)\.?\s*$', line, re.IGNORECASE):
-                continue
-            
-            # Tentar cada padrão
-            for pattern in patterns:
-                match = re.match(pattern, line, re.MULTILINE | re.IGNORECASE)
-                
-                if match:
-                    groups = match.groups()
-                    if len(groups) >= 4:
-                        authors = groups[0].strip()
-                        
-                        # Para o padrão numerado especial (5 grupos)
-                        if len(groups) == 5:
-                            title = groups[1].strip()
-                            journal = groups[2].strip()
-                            volume = groups[3].strip()
-                            year = groups[4].strip()
-                            pages = ""  # Será extraído depois do journal
-                        else:
-                            # Para outros padrões (4 grupos)
-                            year = groups[1].strip()
-                            title = groups[2].strip()
-                            journal = groups[3].strip()
-                            volume = ""
-                    
-                    # Validações adicionais
-                    # Verificar se tem pelo menos um autor válido
-                    if not re.search(r'[A-Z][a-z]+', authors):
-                        continue
-                    
-                    # Verificar se o título não é muito curto
-                    if len(title) < 10:
-                        continue
-                    
-                    # Verificar se não é uma linha de cabeçalho ou rodapé
-                    if re.search(r'(page|vol|volume|number|issue)\s*\d+', line, re.IGNORECASE):
-                        continue
-                    
-                    # Extrair DOI se presente
-                    doi_match = re.search(r'doi[:\s]*([^\s,]+)', journal, re.IGNORECASE)
-                    doi = doi_match.group(1) if doi_match else ""
-                    
-                    # Extrair volume e páginas (se não foram extraídos pelo padrão especial)
-                    if len(groups) != 5:
-                        vol_pages_match = re.search(r'(\d+)\s*\(?\d*\)?\s*[,:]\s*(\d+[-–]\d+)', journal)
-                        volume = vol_pages_match.group(1) if vol_pages_match else ""
-                        pages = vol_pages_match.group(2) if vol_pages_match else ""
+        # Tentar cada padrão
+        for pattern in patterns:
+            reflist = re.findall(pattern, text, re.MULTILINE | re.UNICODE|re.DOTALL)
+
+            if reflist:
+                # change the code below to process the list of references in reflist AI!
+                if len(groups) >= 4:
+                    authors = groups[0].strip()
+
+                    # Para o padrão numerado especial (5 grupos)
+                    if len(groups) == 5:
+                        title = groups[1].strip()
+                        journal = groups[2].strip()
+                        volume = groups[3].strip()
+                        year = groups[4].strip()
+                        pages = ""  # Será extraído depois do journal
                     else:
-                        # Para o padrão numerado, extrair páginas do journal
-                        pages_match = re.search(r'(\d+[-–]\d+)', journal)
-                        pages = pages_match.group(1) if pages_match else ""
-                    
-                    # Limpar campos
-                    authors = re.sub(r'\s+', ' ', authors)
-                    title = re.sub(r'\s+', ' ', title)
-                    journal = re.sub(r'\s+', ' ', journal)
-                    
-                    reference = {
-                        "authors": authors,
-                        "title": title,
-                        "journal": journal,
-                        "year": year,
-                        "volume": volume,
-                        "pages": pages,
-                        "doi": doi,
-                        "line_number": line_num + 1  # Para debug
-                    }
-                    
-                    references.append(reference)
-                    break  # Parar na primeira correspondência para esta linha
+                        # Para outros padrões (4 grupos)
+                        year = groups[1].strip()
+                        title = groups[2].strip()
+                        journal = groups[3].strip()
+                        volume = ""
+
+                # Validações adicionais
+                # Verificar se tem pelo menos um autor válido
+                if not re.search(r'[A-Z][a-z]+', authors):
+                    continue
+
+                # Verificar se o título não é muito curto
+                if len(title) < 10:
+                    continue
+
+                # Verificar se não é uma linha de cabeçalho ou rodapé
+                if re.search(r'(page|vol|volume|number|issue)\s*\d+', line, re.IGNORECASE):
+                    continue
+
+                # Extrair DOI se presente
+                doi_match = re.search(r'doi[:\s]*([^\s,]+)', journal, re.IGNORECASE)
+                doi = doi_match.group(1) if doi_match else ""
+
+                # Extrair volume e páginas (se não foram extraídos pelo padrão especial)
+                if len(groups) != 5:
+                    vol_pages_match = re.search(r'(\d+)\s*\(?\d*\)?\s*[,:]\s*(\d+[-–]\d+)', journal)
+                    volume = vol_pages_match.group(1) if vol_pages_match else ""
+                    pages = vol_pages_match.group(2) if vol_pages_match else ""
+                else:
+                    # Para o padrão numerado, extrair páginas do journal
+                    pages_match = re.search(r'(\d+[-–]\d+)', journal)
+                    pages = pages_match.group(1) if pages_match else ""
+
+                # Limpar campos
+                authors = re.sub(r'\s+', ' ', authors)
+                title = re.sub(r'\s+', ' ', title)
+                journal = re.sub(r'\s+', ' ', journal)
+
+                reference = {
+                    "authors": authors,
+                    "title": title,
+                    "journal": journal,
+                    "year": year,
+                    "volume": volume,
+                    "pages": pages,
+                    "doi": doi,
+                    "line_number": line_num + 1  # Para debug
+                }
+
+                references.append(reference)
+                break  # Parar na primeira correspondência para esta linha
         
         # Remover duplicatas baseadas no título e ano
         seen_refs = set()
