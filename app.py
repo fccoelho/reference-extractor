@@ -127,8 +127,8 @@ def extract_references_with_regex(text):
         
         # Padrões melhorados para extrair referências individuais
         patterns = [
-            # Padrão 0 (novo): Referências numeradas multilinhas com autores múltiplos
-           r'^\d+\.\s*([A-Z][A-Za-z\s,&.-]*?(?:Jr|Sr)?[,\s]*(?:[A-Z][A-Za-z\s,&.-]*?)*?):\s*([^.]+?)\.\s*([^.]+?)\s+(\d{4}),?\s*(\d+):(\d+[-–]\d+)\.',
+            # Padrão 0: Referências numeradas com autores múltiplos (formato: Número. Autores. Título. Journal info (ano).)
+            r'^\d+\.\s*([A-Z][A-Za-z\s,&.-]+?(?:\s&\s[A-Z][A-Za-z\s,&.-]+?)*)\.\s*([^.]+?)\.\s*([^.]+?)\s+(\d+),?\s*([^(]*?)\s*\((\d{4})\)',
             
             # Padrão 1: Autor(es). (Ano). Título. Journal/Editora.
             r'^([A-Z][A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
@@ -165,9 +165,9 @@ def extract_references_with_regex(text):
                         if len(groups) == 6:
                             title = groups[1].strip()
                             journal = groups[2].strip()
-                            year = groups[3].strip()
-                            volume = groups[4].strip()
-                            pages = groups[5].strip()
+                            volume = groups[3].strip()
+                            pages = groups[4].strip()
+                            year = groups[5].strip()
                         else:
                             # Para outros padrões (4 grupos)
                             year = groups[1].strip()
@@ -221,7 +221,7 @@ def create_highlighted_text(text, regex_references):
         
         # Padrões para destacar (mesmos da extração)
         patterns = [
-            r'^\d+\.\s*([A-Za-z\s,&.-]*?(?:Jr|Sr)?[,\s]*(?:[A-Z][A-Za-z\s,&.-\?\(\)-]*?)*?):\s*([^.]+?)\.\s*([^.]+?)\s+(\d{4}),?\s*(\d+):(\d+[-–]\d+)\.',
+            r'^\d+\.\s*([A-Z][A-Za-z\s,&.-]+?(?:\s&\s[A-Z][A-Za-z\s,&.-]+?)*)\.\s*([^.]+?)\.\s*([^.]+?)\s+(\d+),?\s*([^(]*?)\s*\((\d{4})\)',
             r'^([A-Z][A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
             r'^\[\d+\]\s*([A-Z][A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
             r'^([A-Z][A-Za-z\s,&.-]+?)\s+\((\d{4}[a-z]?)\)[.,]\s*([^.]+?)[.,]\s*([^.]+?)\.?\s*$',
