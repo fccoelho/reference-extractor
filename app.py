@@ -148,11 +148,11 @@ def extract_references_with_regex(text):
             # Padrão 6: Múltiplos autores com &
             r'^([A-Z][A-Za-z\s,&.-]+?&[A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$'
         ]
-        patterns = [re.compile(pat) for pat in patterns]
+        # patterns = [re.compile(pat) for pat in patterns]
         
         # Processar cada padrão
         for pattern_index, pattern in enumerate(patterns):
-            reflist = pattern.findall(text, re.MULTILINE | re.UNICODE | re.DOTALL)
+            reflist = re.findall(pattern, text, re.MULTILINE | re.UNICODE | re.DOTALL)
 
             if reflist:
                 for ref_match in reflist:
@@ -221,7 +221,7 @@ def create_highlighted_text(text, regex_references):
         
         # Padrões para destacar (mesmos da extração)
         patterns = [
-            r'^\d+\.\s*([A-Z][A-Za-z\s,&.-]+?(?:\s&\s[A-Z][A-Za-z\s,&.-]+?)*)\.\s*([^.]+?)\.\s*([^.]+?)\s+(\d+),?\s*([^(]*?)\s*\((\d{4})\)',
+            r'^\d+\.\s*([A-Z][A-Za-z\s,&.-]+?(?:\s&\s[A-Z][A-Za-z\s,&.-]+?)*)\.\s*([^.]+?)\.\s*([^.]+?)\s+(\d+),?\s*([^(]*?)\s*\((\d{4})\)'
             r'^([A-Z][A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
             r'^\[\d+\]\s*([A-Z][A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
             r'^([A-Z][A-Za-z\s,&.-]+?)\s+\((\d{4}[a-z]?)\)[.,]\s*([^.]+?)[.,]\s*([^.]+?)\.?\s*$',
