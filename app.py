@@ -1,12 +1,27 @@
 import gradio as gr
 import pymupdf  # PyMuPDF
 import pandas as pd
-import openai
+from pydantic_ai import Agent
+from pydantic import BaseModel
+from typing import List, Optional
+import google.generativeai as genai
 import os
 from dotenv import load_dotenv
 import io
 import json
 import re
+
+class Reference(BaseModel):
+    authors: List[str]
+    title: str
+    journal: Optional[str] = None
+    year: Optional[int] = None
+    volume: Optional[str] = None
+    pages: Optional[str] = None
+    doi: Optional[str] = None
+
+class ReferencesResponse(BaseModel):
+    references: List[Reference]
 
 def extract_pdf_text(pdf_file):
     """Extrai texto e metadados básicos do PDF"""
@@ -38,43 +53,52 @@ def extract_pdf_text(pdf_file):
         return None, {"error": f"Erro ao processar PDF: {str(e)}"}
 
 def extract_references_with_llm(text):
-    """Usa OpenAI para extrair e estruturar referências"""
+    """Usa Pydantic AI com Gemini para extrair e estruturar referências"""
     try:
-        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        # Configurar a API key do Google
+        genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
         
-        prompt = f"""
-        Analise o texto do artigo científico abaixo e extraia APENAS a seção de referências bibliográficas.
-        
-        Para cada referência encontrada, extraia as seguintes informações em formato JSON:
-        - authors: lista de autores
-        - title: título do trabalho
-        - journal: nome da revista/conferência
-        - year: ano de publicação
-        - volume: volume (se disponível)
-        - pages: páginas (se disponível)
-        - doi: DOI (se disponível)
-        
-        Retorne um array JSON com todas as referências encontradas.
-        
-        Texto do artigo:
-        {text[:8000]}  # Limita o texto para evitar exceder limites da API
-        """
-        
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.1
+        # Criar o agente Pydantic AI
+        agent = Agent(
+            'gemini-2.0-flash-exp',  # Modelo Gemini 2.0 Flash
+            result_type=ReferencesResponse,
+            system_prompt="""
+            Você é um especialista em análise de artigos científicos. 
+            Sua tarefa é identificar e extrair APENAS a seção de referências bibliográficas do texto fornecido.
+            
+            Para cada referência encontrada, extraia:
+            - authors: lista completa de autores
+            - title: título completo do trabalho
+            - journal: nome da revista/conferência/editora
+            - year: ano de publicação
+            - volume: volume (se disponível)
+            - pages: páginas (se disponível)
+            - doi: DOI (se disponível)
+            
+            Seja preciso e extraia apenas referências válidas e completas.
+            """
         )
         
-        # Extrair JSON da resposta
-        content = response.choices[0].message.content
-        # Procurar por JSON na resposta
-        json_match = re.search(r'\[.*\]', content, re.DOTALL)
-        if json_match:
-            references_data = json.loads(json_match.group())
-            return references_data
-        else:
-            return []
+        # Limitar o texto para evitar exceder limites da API
+        limited_text = text[:15000]  # Gemini tem limite maior que GPT
+        
+        # Executar o agente
+        result = agent.run_sync(f"Extraia as referências bibliográficas do seguinte texto de artigo científico:\n\n{limited_text}")
+        
+        # Converter para lista de dicionários para compatibilidade com DataFrame
+        references_list = []
+        for ref in result.data.references:
+            references_list.append({
+                "authors": ", ".join(ref.authors) if ref.authors else "",
+                "title": ref.title,
+                "journal": ref.journal or "",
+                "year": ref.year or "",
+                "volume": ref.volume or "",
+                "pages": ref.pages or "",
+                "doi": ref.doi or ""
+            })
+        
+        return references_list
             
     except Exception as e:
         return [{"error": f"Erro ao processar com LLM: {str(e)}"}]
@@ -140,9 +164,10 @@ def main():
     load_dotenv()  # Carrega variáveis de ambiente do arquivo .env
     
     # Verificar se a chave da API está configurada
-    if not os.getenv("OPENAI_API_KEY"):
-        print("⚠️  AVISO: Chave da API OpenAI não encontrada!")
-        print("Crie um arquivo .env com: OPENAI_API_KEY=sua_chave_aqui")
+    if not os.getenv("GOOGLE_API_KEY"):
+        print("⚠️  AVISO: Chave da API Google não encontrada!")
+        print("Crie um arquivo .env com: GOOGLE_API_KEY=sua_chave_aqui")
+        print("Obtenha sua chave em: https://aistudio.google.com/app/apikey")
     
     interface = create_interface()
     interface.launch(share=True)
