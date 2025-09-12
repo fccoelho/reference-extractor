@@ -197,16 +197,113 @@ def extract_references_with_regex(text):
     except Exception as e:
         return [{"error": f"Erro na extração por regex: {str(e)}"}]
 
+def create_highlighted_text(text, regex_references):
+    """Cria HTML com texto destacado onde foram encontradas referências por regex"""
+    try:
+        # Encontrar a seção de referências
+        references_section = ""
+        section_start = 0
+        
+        # Padrões para identificar início da seção de referências
+        ref_patterns = [
+            r'(?i)references?\s*\n',
+            r'(?i)bibliography\s*\n',
+            r'(?i)literatura\s+citada\s*\n',
+            r'(?i)referências\s+bibliográficas\s*\n'
+        ]
+        
+        for pattern in ref_patterns:
+            match = re.search(pattern, text)
+            if match:
+                section_start = match.start()
+                references_section = text[match.end():]
+                break
+        
+        if not references_section:
+            # Se não encontrou seção específica, usar últimos 30% do texto
+            section_start = int(len(text) * 0.7)
+            references_section = text[section_start:]
+        
+        # Criar HTML base
+        html_text = text.replace('\n', '<br>')
+        
+        # Cores para diferentes tipos de matches
+        colors = ['#ffeb3b', '#4caf50', '#2196f3', '#ff9800', '#9c27b0']
+        
+        # Padrões para destacar
+        patterns = [
+            (r'([A-Z][^.]*?)\.\s*\((\d{4})\)\.\s*([^.]+)\.\s*([^.]+?)(?:\.|$)', 'Padrão básico'),
+            (r'\[\d+\]\s*([A-Z][^.]*?)\.\s*\((\d{4})\)\.\s*([^.]+)\.\s*([^.]+?)(?:\.|$)', 'Padrão numerado'),
+            (r'([A-Z][A-Za-z\s,&]+)\s+\((\d{4})\)[.,]\s*([^.]+)[.,]\s*([^.]+?)(?:\.|$)', 'Padrão alternativo'),
+            (r'(?i)references?\s*\n', 'Seção de referências'),
+            (r'(?i)bibliography\s*\n', 'Bibliografia')
+        ]
+        
+        # Aplicar destaques
+        for i, (pattern, description) in enumerate(patterns):
+            color = colors[i % len(colors)]
+            
+            # Encontrar matches no texto da seção de referências
+            section_html = references_section.replace('\n', '<br>')
+            matches = list(re.finditer(pattern, references_section, re.MULTILINE | re.DOTALL))
+            
+            # Destacar matches (processar de trás para frente para não afetar posições)
+            for match in reversed(matches):
+                start, end = match.span()
+                matched_text = references_section[start:end]
+                highlighted = f'<span style="background-color: {color}; padding: 2px; border-radius: 3px;" title="{description}">{matched_text.replace(chr(10), "<br>")}</span>'
+                
+                # Calcular posição no texto completo
+                full_start = section_start + start
+                full_end = section_start + end
+                
+                # Substituir no HTML completo
+                before = html_text[:full_start].replace('\n', '<br>')
+                after = html_text[full_end:].replace('\n', '<br>')
+                html_text = before + highlighted + after
+        
+        # Criar HTML final com estilo
+        styled_html = f"""
+        <div style="
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+            max-height: 400px;
+            overflow-y: auto;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #fafafa;
+            white-space: pre-wrap;
+        ">
+            <div style="margin-bottom: 10px; font-weight: bold; color: #333;">
+                📄 Texto Extraído com Destaques das Referências
+            </div>
+            <div style="margin-bottom: 15px; font-size: 11px; color: #666;">
+                <span style="background-color: #ffeb3b; padding: 2px;">■</span> Padrão básico &nbsp;
+                <span style="background-color: #4caf50; padding: 2px;">■</span> Padrão numerado &nbsp;
+                <span style="background-color: #2196f3; padding: 2px;">■</span> Padrão alternativo &nbsp;
+                <span style="background-color: #ff9800; padding: 2px;">■</span> Seção referências
+            </div>
+            {html_text}
+        </div>
+        """
+        
+        return styled_html
+        
+    except Exception as e:
+        return f"<div style='color: red;'>Erro ao criar texto destacado: {str(e)}</div>"
+
 def process_pdf(pdf_file, model_name):
     """Função principal que processa o PDF e retorna resultados"""
     if pdf_file is None:
-        return {"error": "Nenhum arquivo enviado"}, pd.DataFrame(), pd.DataFrame(), "❌ Nenhum arquivo enviado", ""
+        return {"error": "Nenhum arquivo enviado"}, pd.DataFrame(), pd.DataFrame(), "❌ Nenhum arquivo enviado", "<div>Nenhum texto para exibir</div>"
     
     # Extrair texto do PDF
     text, metadata = extract_pdf_text(pdf_file)
     
     if text is None:
-        return metadata, pd.DataFrame(), pd.DataFrame(), "❌ Erro ao processar PDF", ""
+        return metadata, pd.DataFrame(), pd.DataFrame(), "❌ Erro ao processar PDF", "<div style='color: red;'>Erro ao extrair texto</div>"
     
     # Adicionar modelo selecionado aos metadados
     metadata["modelo_usado"] = model_name
@@ -218,6 +315,9 @@ def process_pdf(pdf_file, model_name):
     
     # Extrair referências com Regex
     regex_references = extract_references_with_regex(text)
+    
+    # Criar HTML com destaques
+    highlighted_html = create_highlighted_text(text, regex_references)
     
     # Converter para DataFrames
     if llm_references and not any("error" in ref for ref in llm_references):
@@ -236,7 +336,7 @@ def process_pdf(pdf_file, model_name):
     
     status = f"📊 **Resultados da Extração:**\n- LLM ({model_name}): {llm_count} referências\n- Regex: {regex_count} referências"
     
-    return metadata, llm_df, regex_df, status, text
+    return metadata, llm_df, regex_df, status, highlighted_html
 
 def create_interface():
     """Cria a interface Gradio"""
@@ -272,13 +372,9 @@ def create_interface():
             with gr.Column():
                 metadata_output = gr.JSON(label="📋 Metadados do Artigo")
             with gr.Column():
-                extracted_text_output = gr.Textbox(
-                    label="📄 Texto Extraído do PDF",
-                    lines=15,
-                    max_lines=20,
-                    show_copy_button=True,
-                    placeholder="O texto extraído do PDF aparecerá aqui...",
-                    interactive=False
+                extracted_text_output = gr.HTML(
+                    label="📄 Texto Extraído com Destaques",
+                    show_copy_button=True
                 )
         
         with gr.Row():
