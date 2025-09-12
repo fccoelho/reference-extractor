@@ -5,6 +5,7 @@ from pydantic_ai import Agent
 from pydantic import BaseModel
 from typing import List, Optional
 import google.generativeai as genai
+import openai
 import os
 from dotenv import load_dotenv
 import io
@@ -52,15 +53,24 @@ def extract_pdf_text(pdf_file):
     except Exception as e:
         return None, {"error": f"Erro ao processar PDF: {str(e)}"}
 
-def extract_references_with_llm(text):
-    """Usa Pydantic AI com Gemini para extrair e estruturar referências"""
+def extract_references_with_llm(text, model_name):
+    """Usa Pydantic AI com diferentes modelos para extrair e estruturar referências"""
     try:
-        # Configurar a API key do Google
-        genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+        # Determinar se é modelo Google ou OpenAI
+        if model_name.startswith('gemini'):
+            # Configurar a API key do Google
+            genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+            api_key = os.getenv("GOOGLE_API_KEY")
+        else:
+            # Usar OpenAI
+            api_key = os.getenv("OPENAI_API_KEY")
+        
+        if not api_key:
+            return [{"error": f"Chave da API não encontrada para o modelo {model_name}"}]
         
         # Criar o agente Pydantic AI
         agent = Agent(
-            'gemini-2.5-pro',  # Modelo Gemini 2.0 Flash
+            model_name,
             result_type=ReferencesResponse,
             system_prompt="""
             Você é um especialista em análise de artigos científicos. 
@@ -79,8 +89,11 @@ def extract_references_with_llm(text):
             """
         )
         
-        # Limitar o texto para evitar exceder limites da API
-        limited_text = text[:150000]  # Gemini tem limite maior que GPT
+        # Ajustar limite de texto baseado no modelo
+        if model_name.startswith('gemini'):
+            limited_text = text[:150000]  # Gemini tem limite maior
+        else:
+            limited_text = text[:50000]   # OpenAI tem limite menor
         
         # Executar o agente
         result = agent.run_sync(f"Extraia as referências bibliográficas do seguinte texto de artigo científico:\n\n{limited_text}")
@@ -101,9 +114,9 @@ def extract_references_with_llm(text):
         return references_list
             
     except Exception as e:
-        return [{"error": f"Erro ao processar com LLM: {str(e)}"}]
+        return [{"error": f"Erro ao processar com LLM ({model_name}): {str(e)}"}]
 
-def process_pdf(pdf_file):
+def process_pdf(pdf_file, model_name):
     """Função principal que processa o PDF e retorna resultados"""
     if pdf_file is None:
         return {"error": "Nenhum arquivo enviado"}, pd.DataFrame()
@@ -114,8 +127,11 @@ def process_pdf(pdf_file):
     if text is None:
         return metadata, pd.DataFrame()
     
+    # Adicionar modelo selecionado aos metadados
+    metadata["modelo_usado"] = model_name
+    
     # Extrair referências com LLM
-    references = extract_references_with_llm(text)
+    references = extract_references_with_llm(text, model_name)
     
     # Converter para DataFrame
     if references and not any("error" in ref for ref in references):
@@ -132,11 +148,26 @@ def create_interface():
         gr.Markdown("Faça upload de um PDF de artigo científico para extrair automaticamente a lista de referências.")
         
         with gr.Row():
-            pdf_input = gr.File(
-                label="📄 Upload do PDF",
-                file_types=[".pdf"],
-                type="binary"
-            )
+            with gr.Column():
+                pdf_input = gr.File(
+                    label="📄 Upload do PDF",
+                    file_types=[".pdf"],
+                    type="binary"
+                )
+            with gr.Column():
+                model_dropdown = gr.Dropdown(
+                    choices=[
+                        "gemini-2.0-flash-exp",
+                        "gemini-1.5-pro",
+                        "gemini-1.5-flash",
+                        "gpt-4o",
+                        "gpt-4o-mini",
+                        "gpt-3.5-turbo"
+                    ],
+                    value="gemini-2.0-flash-exp",
+                    label="🤖 Modelo de IA",
+                    info="Selecione o modelo para extrair as referências"
+                )
         
         extract_btn = gr.Button("🔍 Extrair Referências", variant="primary")
         
@@ -154,7 +185,7 @@ def create_interface():
         
         extract_btn.click(
             process_pdf,
-            inputs=[pdf_input],
+            inputs=[pdf_input, model_dropdown],
             outputs=[metadata_output, references_output]
         )
     
@@ -163,11 +194,19 @@ def create_interface():
 def main():
     load_dotenv()  # Carrega variáveis de ambiente do arquivo .env
     
-    # Verificar se a chave da API está configurada
-    if not os.getenv("GEMINI_API_KEY"):
-        print("⚠️  AVISO: Chave da API Google não encontrada!")
-        print("Crie um arquivo .env com: GEMINI_API_KEY=sua_chave_aqui")
-        print("Obtenha sua chave em: https://aistudio.google.com/app/apikey")
+    # Verificar se as chaves das APIs estão configuradas
+    google_key = os.getenv("GOOGLE_API_KEY")
+    openai_key = os.getenv("OPENAI_API_KEY")
+    
+    if not google_key and not openai_key:
+        print("⚠️  AVISO: Nenhuma chave de API encontrada!")
+        print("Configure pelo menos uma das seguintes no arquivo .env:")
+        print("- GOOGLE_API_KEY=sua_chave_do_google")
+        print("- OPENAI_API_KEY=sua_chave_da_openai")
+    elif not google_key:
+        print("ℹ️  Apenas OpenAI configurado. Modelos Gemini não funcionarão.")
+    elif not openai_key:
+        print("ℹ️  Apenas Google configurado. Modelos OpenAI não funcionarão.")
     
     interface = create_interface()
     interface.launch(share=True)
