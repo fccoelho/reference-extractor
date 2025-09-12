@@ -2,6 +2,7 @@ import gradio as gr
 import pymupdf  # PyMuPDF
 import pandas as pd
 from pydantic_ai import Agent
+from pydantic_ai.settings import ModelSettings
 from pydantic import BaseModel
 from typing import List, Optional
 import google.generativeai as genai
@@ -59,8 +60,8 @@ def extract_references_with_llm(text, model_name):
         # Determinar se é modelo Google ou OpenAI
         if model_name.startswith('gemini'):
             # Configurar a API key do Google
-            genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-            api_key = os.getenv("GOOGLE_API_KEY")
+            genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+            api_key = os.getenv("GEMINI_API_KEY")
         else:
             # Usar OpenAI
             api_key = os.getenv("OPENAI_API_KEY")
@@ -71,6 +72,9 @@ def extract_references_with_llm(text, model_name):
         # Criar o agente Pydantic AI
         agent = Agent(
             model_name,
+            model_settings=ModelSettings(
+                timeout=30,
+            ),
             result_type=ReferencesResponse,
             system_prompt="""
             Você é um especialista em análise de artigos científicos. 
@@ -124,7 +128,7 @@ def extract_references_with_regex(text):
         # Padrões melhorados para extrair referências individuais
         patterns = [
             # Padrão 0 (novo): Referências numeradas multilinhas com autores múltiplos
-            r'^\d+\.\s*([A-Z][A-Za-z\s,&.-]*?(?:Jr|Sr)?[,\s]*(?:[A-Z][A-Za-z\s,&.-]*?)*?):\s*([^.]+?)\.\s*([^.]+?)\s+(\d{4}),?\s*(\d+):(\d+[-–]\d+)\.',
+           r'^\d+\.\s*([A-Z][A-Za-z\s,&.-]*?(?:Jr|Sr)?[,\s]*(?:[A-Z][A-Za-z\s,&.-]*?)*?):\s*([^.]+?)\.\s*([^.]+?)\s+(\d{4}),?\s*(\d+):(\d+[-–]\d+)\.',
             
             # Padrão 1: Autor(es). (Ano). Título. Journal/Editora.
             r'^([A-Z][A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
@@ -144,10 +148,11 @@ def extract_references_with_regex(text):
             # Padrão 6: Múltiplos autores com &
             r'^([A-Z][A-Za-z\s,&.-]+?&[A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$'
         ]
+        patterns = [re.compile(pat) for pat in patterns]
         
         # Processar cada padrão
         for pattern_index, pattern in enumerate(patterns):
-            reflist = re.findall(pattern, text, re.MULTILINE | re.UNICODE | re.DOTALL)
+            reflist = pattern.findall(text, re.MULTILINE | re.UNICODE | re.DOTALL)
 
             if reflist:
                 for ref_match in reflist:
@@ -170,11 +175,6 @@ def extract_references_with_regex(text):
                             journal = groups[3].strip()
                             volume = ""
 
-
-
-                        # Verificar se não é uma linha de cabeçalho ou rodapé
-                        if re.search(r'(page|vol|volume|number|issue)\s*\d+', journal, re.IGNORECASE):
-                            continue
 
                         # Extrair DOI se presente
                         doi_match = re.search(r'doi[:\s]*([^\s,]+)', journal, re.IGNORECASE)
@@ -402,7 +402,7 @@ def main():
     load_dotenv()  # Carrega variáveis de ambiente do arquivo .env
     
     # Verificar se as chaves das APIs estão configuradas
-    google_key = os.getenv("GOOGLE_API_KEY")
+    google_key = os.getenv("GEMINI_API_KEY")
     openai_key = os.getenv("OPENAI_API_KEY")
     
     if not google_key and not openai_key:
