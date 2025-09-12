@@ -61,7 +61,7 @@ def extract_references_with_llm(text):
         """
         
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4o",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1
         )
@@ -122,6 +122,9 @@ def create_interface():
             with gr.Column():
                 references_output = gr.Dataframe(
                     label="📖 Lista de Referências",
+                    row_count=(10,'dynamic'),
+                    show_copy_button=True,
+                    show_fullscreen_button=True,
                     wrap=True
                 )
         
