@@ -157,14 +157,14 @@ def create_interface():
             with gr.Column():
                 model_dropdown = gr.Dropdown(
                     choices=[
-                        "gemini-2.0-flash-exp",
-                        "gemini-1.5-pro",
-                        "gemini-1.5-flash",
+                        "gemini-2.5-flash-lite",
+                        "gemini-2.5-pro",
+                        "gemini-2.5-flash",
                         "gpt-4o",
                         "gpt-o3-mini",
                         "gpt-4.1"
                     ],
-                    value="gemini-2.0-flash-exp",
+                    value="gemini-2.5-flash-lite",
                     label="🤖 Modelo de IA",
                     info="Selecione o modelo para extrair as referências"
                 )
@@ -201,7 +201,7 @@ def main():
     if not google_key and not openai_key:
         print("⚠️  AVISO: Nenhuma chave de API encontrada!")
         print("Configure pelo menos uma das seguintes no arquivo .env:")
-        print("- GOOGLE_API_KEY=sua_chave_do_google")
+        print("- GEMINI_API_KEY=sua_chave_do_google")
         print("- OPENAI_API_KEY=sua_chave_da_openai")
     elif not google_key:
         print("ℹ️  Apenas OpenAI configurado. Modelos Gemini não funcionarão.")
@@ -209,7 +209,7 @@ def main():
         print("ℹ️  Apenas Google configurado. Modelos OpenAI não funcionarão.")
     
     interface = create_interface()
-    interface.launch(share=True)
+    interface.launch(share=False)
 
 if __name__ == "__main__":
     main()
