@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "gradio>=4.0.0",
-    "PyPDF2>=3.0.0",
+    "pymupdf>=1.23.0",
     "pandas>=2.0.0",
     "openai>=1.0.0",
     "python-dotenv>=1.0.0"

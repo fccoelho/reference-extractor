@@ -1,5 +1,5 @@
 import gradio as gr
-import PyPDF2
+import fitz  # PyMuPDF
 import pandas as pd
 import openai
 import os
@@ -11,19 +11,27 @@ import re
 def extract_pdf_text(pdf_file):
     """Extrai texto e metadados básicos do PDF"""
     try:
-        pdf_reader = PyPDF2.PdfReader(pdf_file)
+        # Abrir o PDF com PyMuPDF
+        doc = fitz.open(stream=pdf_file, filetype="pdf")
         
         # Extrair texto de todas as páginas
         full_text = ""
-        for page in pdf_reader.pages:
-            full_text += page.extract_text() + "\n"
+        for page_num in range(len(doc)):
+            page = doc.load_page(page_num)
+            full_text += page.get_text() + "\n"
         
         # Extrair metadados básicos
+        metadata_dict = doc.metadata
         metadata = {
-            "num_pages": len(pdf_reader.pages),
-            "title": pdf_reader.metadata.get('/Title', 'Não disponível') if pdf_reader.metadata else 'Não disponível',
-            "author": pdf_reader.metadata.get('/Author', 'Não disponível') if pdf_reader.metadata else 'Não disponível'
+            "num_pages": len(doc),
+            "title": metadata_dict.get('title', 'Não disponível') if metadata_dict.get('title') else 'Não disponível',
+            "author": metadata_dict.get('author', 'Não disponível') if metadata_dict.get('author') else 'Não disponível',
+            "subject": metadata_dict.get('subject', 'Não disponível') if metadata_dict.get('subject') else 'Não disponível',
+            "creator": metadata_dict.get('creator', 'Não disponível') if metadata_dict.get('creator') else 'Não disponível'
         }
+        
+        # Fechar o documento
+        doc.close()
         
         return full_text, metadata
     except Exception as e:
