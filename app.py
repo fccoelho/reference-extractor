@@ -123,6 +123,9 @@ def extract_references_with_regex(text):
         
         # Padrões melhorados para extrair referências individuais
         patterns = [
+            # Padrão 0: Referências numeradas com ponto (ex: 46. Autor et al. Título. Journal vol, pages (ano).)
+            r'^\d+\.\s*([A-Z][A-Za-z\s,&.-]*?et\s+al\.?|[A-Z][A-Za-z\s,&.-]+?)\.\s*([^.]+?)\.\s*([^.]+?)\s+(\d+),?\s*[\d–-]+\s*\((\d{4})\)\.',
+            
             # Padrão 1: Autor(es). (Ano). Título. Journal/Editora.
             r'^([A-Z][A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
             
@@ -161,11 +164,24 @@ def extract_references_with_regex(text):
             for pattern in patterns:
                 match = re.match(pattern, line, re.MULTILINE | re.IGNORECASE)
                 
-                if match and len(match.groups()) >= 4:
-                    authors = match.group(1).strip()
-                    year = match.group(2).strip()
-                    title = match.group(3).strip()
-                    journal = match.group(4).strip()
+                if match:
+                    groups = match.groups()
+                    if len(groups) >= 4:
+                        authors = groups[0].strip()
+                        
+                        # Para o padrão numerado especial (5 grupos)
+                        if len(groups) == 5:
+                            title = groups[1].strip()
+                            journal = groups[2].strip()
+                            volume = groups[3].strip()
+                            year = groups[4].strip()
+                            pages = ""  # Será extraído depois do journal
+                        else:
+                            # Para outros padrões (4 grupos)
+                            year = groups[1].strip()
+                            title = groups[2].strip()
+                            journal = groups[3].strip()
+                            volume = ""
                     
                     # Validações adicionais
                     # Verificar se tem pelo menos um autor válido
@@ -184,10 +200,15 @@ def extract_references_with_regex(text):
                     doi_match = re.search(r'doi[:\s]*([^\s,]+)', journal, re.IGNORECASE)
                     doi = doi_match.group(1) if doi_match else ""
                     
-                    # Extrair volume e páginas
-                    vol_pages_match = re.search(r'(\d+)\s*\(?\d*\)?\s*[,:]\s*(\d+[-–]\d+)', journal)
-                    volume = vol_pages_match.group(1) if vol_pages_match else ""
-                    pages = vol_pages_match.group(2) if vol_pages_match else ""
+                    # Extrair volume e páginas (se não foram extraídos pelo padrão especial)
+                    if len(groups) != 5:
+                        vol_pages_match = re.search(r'(\d+)\s*\(?\d*\)?\s*[,:]\s*(\d+[-–]\d+)', journal)
+                        volume = vol_pages_match.group(1) if vol_pages_match else ""
+                        pages = vol_pages_match.group(2) if vol_pages_match else ""
+                    else:
+                        # Para o padrão numerado, extrair páginas do journal
+                        pages_match = re.search(r'(\d+[-–]\d+)', journal)
+                        pages = pages_match.group(1) if pages_match else ""
                     
                     # Limpar campos
                     authors = re.sub(r'\s+', ' ', authors)
@@ -239,6 +260,7 @@ def create_highlighted_text(text, regex_references):
         
         # Padrões para destacar (mesmos da extração)
         patterns = [
+            r'^\d+\.\s*([A-Z][A-Za-z\s,&.-]*?et\s+al\.?|[A-Z][A-Za-z\s,&.-]+?)\.\s*([^.]+?)\.\s*([^.]+?)\s+(\d+),?\s*[\d–-]+\s*\((\d{4})\)\.',
             r'^([A-Z][A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
             r'^\[\d+\]\s*([A-Z][A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
             r'^([A-Z][A-Za-z\s,&.-]+?)\s+\((\d{4}[a-z]?)\)[.,]\s*([^.]+?)[.,]\s*([^.]+?)\.?\s*$',
@@ -247,7 +269,7 @@ def create_highlighted_text(text, regex_references):
             r'^([A-Z][A-Za-z\s,&.-]+?&[A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$'
         ]
         
-        colors = ['#ffeb3b', '#4caf50', '#2196f3', '#ff9800', '#9c27b0', '#e91e63']
+        colors = ['#ff5722', '#ffeb3b', '#4caf50', '#2196f3', '#ff9800', '#9c27b0', '#e91e63']
         
         # Processar cada linha
         for line in lines:
@@ -288,6 +310,7 @@ def create_highlighted_text(text, regex_references):
                 📄 Texto Extraído com Destaques das Referências
             </div>
             <div style="margin-bottom: 15px; font-size: 11px; color: #666;">
+                <span style="background-color: #ff5722; padding: 2px;">■</span> Padrão 0 &nbsp;
                 <span style="background-color: #ffeb3b; padding: 2px;">■</span> Padrão 1 &nbsp;
                 <span style="background-color: #4caf50; padding: 2px;">■</span> Padrão 2 &nbsp;
                 <span style="background-color: #2196f3; padding: 2px;">■</span> Padrão 3 &nbsp;
