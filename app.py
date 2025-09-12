@@ -200,16 +200,18 @@ def extract_references_with_regex(text):
 def process_pdf(pdf_file, model_name):
     """Função principal que processa o PDF e retorna resultados"""
     if pdf_file is None:
-        return {"error": "Nenhum arquivo enviado"}, pd.DataFrame(), pd.DataFrame(), "❌ Nenhum arquivo enviado"
+        return {"error": "Nenhum arquivo enviado"}, pd.DataFrame(), pd.DataFrame(), "❌ Nenhum arquivo enviado", ""
     
     # Extrair texto do PDF
     text, metadata = extract_pdf_text(pdf_file)
     
     if text is None:
-        return metadata, pd.DataFrame(), pd.DataFrame(), "❌ Erro ao processar PDF"
+        return metadata, pd.DataFrame(), pd.DataFrame(), "❌ Erro ao processar PDF", ""
     
     # Adicionar modelo selecionado aos metadados
     metadata["modelo_usado"] = model_name
+    metadata["caracteres_extraidos"] = len(text)
+    metadata["palavras_aproximadas"] = len(text.split())
     
     # Extrair referências com LLM
     llm_references = extract_references_with_llm(text, model_name)
@@ -234,7 +236,7 @@ def process_pdf(pdf_file, model_name):
     
     status = f"📊 **Resultados da Extração:**\n- LLM ({model_name}): {llm_count} referências\n- Regex: {regex_count} referências"
     
-    return metadata, llm_df, regex_df, status
+    return metadata, llm_df, regex_df, status, text
 
 def create_interface():
     """Cria a interface Gradio"""
@@ -267,7 +269,17 @@ def create_interface():
         extract_btn = gr.Button("🔍 Extrair Referências", variant="primary")
         
         with gr.Row():
-            metadata_output = gr.JSON(label="📋 Metadados do Artigo")
+            with gr.Column():
+                metadata_output = gr.JSON(label="📋 Metadados do Artigo")
+            with gr.Column():
+                extracted_text_output = gr.Textbox(
+                    label="📄 Texto Extraído do PDF",
+                    lines=15,
+                    max_lines=20,
+                    show_copy_button=True,
+                    placeholder="O texto extraído do PDF aparecerá aqui...",
+                    interactive=False
+                )
         
         with gr.Row():
             with gr.Column():
@@ -292,7 +304,7 @@ def create_interface():
         extract_btn.click(
             process_pdf,
             inputs=[pdf_input, model_dropdown],
-            outputs=[metadata_output, llm_references_output, regex_references_output, status_output]
+            outputs=[metadata_output, llm_references_output, regex_references_output, status_output, extracted_text_output]
         )
     
     return interface
