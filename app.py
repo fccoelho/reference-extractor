@@ -374,7 +374,6 @@ def create_interface():
             with gr.Column():
                 extracted_text_output = gr.HTML(
                     label="📄 Texto Extraído com Destaques",
-                    show_copy_button=True
                 )
         
         with gr.Row():
