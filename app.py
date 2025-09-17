@@ -133,8 +133,8 @@ def extract_references_with_regex(text):
             # Padrão 1: Autor(es). (Ano). Título. Journal/Editora.
             r'^([A-Z][A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
             
-            # Padrão 2: Referências numeradas [1] Autor...
-            r'^\[\d+\]\s*([A-Z][A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
+            # Padrão 2: Referências numeradas [1] Autor... ano Título. Journal doi:...
+            r'^\[\d+\]\s*([A-Z][A-Za-z\s,&.-]+?)\s+(\d{4})\s+([^.]+?)\.\s*([^.]+?)(?:\s+doi:([^\s.]+))?\.?\s*$',
             
             # Padrão 3: Autor, A. (Ano). Título. Journal.
             r'^([A-Z][A-Za-z\s,&.-]+?)\s+\((\d{4}[a-z]?)\)[.,]\s*([^.]+?)[.,]\s*([^.]+?)\.?\s*$',
