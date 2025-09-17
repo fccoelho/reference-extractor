@@ -13,6 +13,33 @@ import io
 import json
 import re
 
+# Padrões globais de regex para extração de referências
+REFERENCE_PATTERNS = [
+    # Padrão 0: Referências numeradas com autores múltiplos (formato: Número. Autores. Título. Journal info (ano).)
+    r'^\d+\.\s*([A-Z][A-Za-z\s,&.-]+?(?:\s&\s[A-Z][A-Za-z\s,&.-]+?)*)\.\s*([^.]+?)\.\s*([^.]+?)\s+(\d+),?\s*([^(]*?)\s*\((\d{4})\)',
+    
+    # Padrão 1: Autor(es). (Ano). Título. Journal/Editora.
+    r'^([A-Z][A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
+    
+    # Padrão 2: Referências numeradas [1] Autor... ano Título. Journal doi:...
+    r'^\[\d+\]\s*([A-Z][A-Za-z\s,&.-]+?)\s+(\d{4})\s+([^.]+?)\.\s*([^.]+?)(?:\s+doi:([^\s.]+))?\.?\s*$',
+    
+    # Padrão 3: Autor, A. (Ano). Título. Journal.
+    r'^([A-Z][A-Za-z\s,&.-]+?)\s+\((\d{4}[a-z]?)\)[.,]\s*([^.]+?)[.,]\s*([^.]+?)\.?\s*$',
+    
+    # Padrão 4: Autor et al. (Ano) Título. Journal
+    r'^([A-Z][A-Za-z\s,&.-]*?et\s+al\.?)\s*\((\d{4}[a-z]?)\)[.,]?\s*([^.]+?)[.,]\s*([^.]+?)\.?\s*$',
+    
+    # Padrão 5: Sobrenome, Nome (Ano). Título. Journal.
+    r'^([A-Z][a-z]+,\s*[A-Z][A-Za-z\s,&.-]*?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
+    
+    # Padrão 6: Múltiplos autores com &
+    r'^([A-Z][A-Za-z\s,&.-]+?&[A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
+    
+    # Padrão 7: Referências numeradas [número] Autor: Título, Editora (ano)
+    r'^\[\d+\]\s*([A-Z][A-Za-z\s,&.-]+?):\s*([^,]+?),\s*([^(]+?)\s*\((\d{4})\)'
+]
+
 class Reference(BaseModel):
     authors: List[str]
     title: str
@@ -125,36 +152,8 @@ def extract_references_with_regex(text):
     try:
         references = []
         
-        # Padrões melhorados para extrair referências individuais
-        patterns = [
-            # Padrão 0: Referências numeradas com autores múltiplos (formato: Número. Autores. Título. Journal info (ano).)
-            r'^\d+\.\s*([A-Z][A-Za-z\s,&.-]+?(?:\s&\s[A-Z][A-Za-z\s,&.-]+?)*)\.\s*([^.]+?)\.\s*([^.]+?)\s+(\d+),?\s*([^(]*?)\s*\((\d{4})\)',
-            
-            # Padrão 1: Autor(es). (Ano). Título. Journal/Editora.
-            r'^([A-Z][A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
-            
-            # Padrão 2: Referências numeradas [1] Autor... ano Título. Journal doi:...
-            r'^\[\d+\]\s*([A-Z][A-Za-z\s,&.-]+?)\s+(\d{4})\s+([^.]+?)\.\s*([^.]+?)(?:\s+doi:([^\s.]+))?\.?\s*$',
-            
-            # Padrão 3: Autor, A. (Ano). Título. Journal.
-            r'^([A-Z][A-Za-z\s,&.-]+?)\s+\((\d{4}[a-z]?)\)[.,]\s*([^.]+?)[.,]\s*([^.]+?)\.?\s*$',
-            
-            # Padrão 4: Autor et al. (Ano) Título. Journal
-            r'^([A-Z][A-Za-z\s,&.-]*?et\s+al\.?)\s*\((\d{4}[a-z]?)\)[.,]?\s*([^.]+?)[.,]\s*([^.]+?)\.?\s*$',
-            
-            # Padrão 5: Sobrenome, Nome (Ano). Título. Journal.
-            r'^([A-Z][a-z]+,\s*[A-Z][A-Za-z\s,&.-]*?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
-            
-            # Padrão 6: Múltiplos autores com &
-            r'^([A-Z][A-Za-z\s,&.-]+?&[A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
-            
-            # Padrão 7: Referências numeradas [número] Autor: Título, Editora (ano)
-            r'^\[\d+\]\s*([A-Z][A-Za-z\s,&.-]+?):\s*([^,]+?),\s*([^(]+?)\s*\((\d{4})\)'
-        ]
-        # patterns = [re.compile(pat) for pat in patterns]
-        
         # Processar cada padrão
-        for pattern_index, pattern in enumerate(patterns):
+        for pattern_index, pattern in enumerate(REFERENCE_PATTERNS):
             reflist = re.findall(pattern, text, re.MULTILINE | re.UNICODE | re.DOTALL)
 
             if reflist:
@@ -228,18 +227,6 @@ def create_highlighted_text(text, regex_references):
         lines = text.split('\n')
         highlighted_lines = []
         
-        # Padrões para destacar (mesmos da extração)
-        patterns = [
-            r'^\d+\.\s*([A-Z][A-Za-z\s,&.-]+?(?:\s&\s[A-Z][A-Za-z\s,&.-]+?)*)\.\s*([^.]+?)\.\s*([^.]+?)\s+(\d+),?\s*([^(]*?)\s*\((\d{4})\)',
-            r'^([A-Z][A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
-            r'^\[\d+\]\s*([A-Z][A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
-            r'^([A-Z][A-Za-z\s,&.-]+?)\s+\((\d{4}[a-z]?)\)[.,]\s*([^.]+?)[.,]\s*([^.]+?)\.?\s*$',
-            r'^([A-Z][A-Za-z\s,&.-]*?et\s+al\.?)\s*\((\d{4}[a-z]?)\)[.,]?\s*([^.]+?)[.,]\s*([^.]+?)\.?\s*$',
-            r'^([A-Z][a-z]+,\s*[A-Z][A-Za-z\s,&.-]*?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
-            r'^([A-Z][A-Za-z\s,&.-]+?&[A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
-            r'^\[\d+\]\s*([A-Z][A-Za-z\s,&.-]+?):\s*([^,]+?),\s*([^(]+?)\s*\((\d{4})\)'
-        ]
-        
         colors = ['#ff5722', '#ffeb3b', '#4caf50', '#2196f3', '#ff9800', '#9c27b0', '#e91e63', '#795548']
         
         # Processar cada linha
@@ -249,7 +236,7 @@ def create_highlighted_text(text, regex_references):
             
             # Verificar se a linha corresponde a algum padrão
             matched = False
-            for i, pattern in enumerate(patterns):
+            for i, pattern in enumerate(REFERENCE_PATTERNS):
                 if re.match(pattern, line_stripped, re.MULTILINE | re.IGNORECASE):
                     if len(line_stripped) >= 20 and line_stripped[0].isupper():
                         color = colors[i % len(colors)]
