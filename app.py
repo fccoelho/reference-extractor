@@ -146,7 +146,10 @@ def extract_references_with_regex(text):
             r'^([A-Z][a-z]+,\s*[A-Z][A-Za-z\s,&.-]*?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
             
             # Padrão 6: Múltiplos autores com &
-            r'^([A-Z][A-Za-z\s,&.-]+?&[A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$'
+            r'^([A-Z][A-Za-z\s,&.-]+?&[A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
+            
+            # Padrão 7: Referências numeradas [número] Autor: Título, Editora (ano)
+            r'^\[\d+\]\s*([A-Z][A-Za-z\s,&.-]+?):\s*([^,]+?),\s*([^(]+?)\s*\((\d{4})\)'
         ]
         # patterns = [re.compile(pat) for pat in patterns]
         
@@ -168,6 +171,12 @@ def extract_references_with_regex(text):
                             volume = groups[3].strip()
                             pages = groups[4].strip()
                             year = groups[5].strip()
+                        # Para o padrão 7 (formato [número] Autor: Título, Editora (ano))
+                        elif pattern_index == 7:
+                            title = groups[1].strip()
+                            journal = groups[2].strip()
+                            year = groups[3].strip()
+                            volume = ""
                         else:
                             # Para outros padrões (4 grupos)
                             year = groups[1].strip()
@@ -221,16 +230,17 @@ def create_highlighted_text(text, regex_references):
         
         # Padrões para destacar (mesmos da extração)
         patterns = [
-            r'^\d+\.\s*([A-Z][A-Za-z\s,&.-]+?(?:\s&\s[A-Z][A-Za-z\s,&.-]+?)*)\.\s*([^.]+?)\.\s*([^.]+?)\s+(\d+),?\s*([^(]*?)\s*\((\d{4})\)'
+            r'^\d+\.\s*([A-Z][A-Za-z\s,&.-]+?(?:\s&\s[A-Z][A-Za-z\s,&.-]+?)*)\.\s*([^.]+?)\.\s*([^.]+?)\s+(\d+),?\s*([^(]*?)\s*\((\d{4})\)',
             r'^([A-Z][A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
             r'^\[\d+\]\s*([A-Z][A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
             r'^([A-Z][A-Za-z\s,&.-]+?)\s+\((\d{4}[a-z]?)\)[.,]\s*([^.]+?)[.,]\s*([^.]+?)\.?\s*$',
             r'^([A-Z][A-Za-z\s,&.-]*?et\s+al\.?)\s*\((\d{4}[a-z]?)\)[.,]?\s*([^.]+?)[.,]\s*([^.]+?)\.?\s*$',
             r'^([A-Z][a-z]+,\s*[A-Z][A-Za-z\s,&.-]*?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
-            r'^([A-Z][A-Za-z\s,&.-]+?&[A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$'
+            r'^([A-Z][A-Za-z\s,&.-]+?&[A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
+            r'^\[\d+\]\s*([A-Z][A-Za-z\s,&.-]+?):\s*([^,]+?),\s*([^(]+?)\s*\((\d{4})\)'
         ]
         
-        colors = ['#ff5722', '#ffeb3b', '#4caf50', '#2196f3', '#ff9800', '#9c27b0', '#e91e63']
+        colors = ['#ff5722', '#ffeb3b', '#4caf50', '#2196f3', '#ff9800', '#9c27b0', '#e91e63', '#795548']
         
         # Processar cada linha
         for line in lines:
@@ -277,7 +287,8 @@ def create_highlighted_text(text, regex_references):
                 <span style="background-color: #2196f3; padding: 2px;">■</span> Padrão 3 &nbsp;
                 <span style="background-color: #ff9800; padding: 2px;">■</span> Padrão 4 &nbsp;
                 <span style="background-color: #9c27b0; padding: 2px;">■</span> Padrão 5 &nbsp;
-                <span style="background-color: #e91e63; padding: 2px;">■</span> Padrão 6
+                <span style="background-color: #e91e63; padding: 2px;">■</span> Padrão 6 &nbsp;
+                <span style="background-color: #795548; padding: 2px;">■</span> Padrão 7
             </div>
             {html_content}
         </div>
