@@ -220,82 +220,24 @@ def extract_references_with_regex(text):
     except Exception as e:
         return [{"error": f"Erro na extração por regex: {str(e)}"}]
 
-def create_highlighted_text(text, regex_references):
-    """Cria HTML com texto destacado onde foram encontradas referências por regex"""
+def create_plain_text(text, regex_references):
+    """Retorna o texto extraído como texto simples"""
     try:
-        # Dividir texto em linhas
-        lines = text.split('\n')
-        highlighted_lines = []
-        
-        colors = ['#ff5722', '#ffeb3b', '#4caf50', '#2196f3', '#ff9800', '#9c27b0', '#e91e63', '#795548']
-        
-        # Processar cada linha
-        for line in lines:
-            original_line = line
-            line_stripped = line.strip()
-            
-            # Verificar se a linha corresponde a algum padrão
-            matched = False
-            for i, pattern in enumerate(REFERENCE_PATTERNS):
-                if re.match(pattern, line_stripped, re.MULTILINE | re.IGNORECASE):
-                    if len(line_stripped) >= 20 and line_stripped[0].isupper():
-                        color = colors[i % len(colors)]
-                        highlighted_line = f'<span style="background-color: {color}; padding: 2px; border-radius: 3px; display: block; margin: 1px 0;" title="Padrão {i+1}">{original_line}</span>'
-                        highlighted_lines.append(highlighted_line)
-                        matched = True
-                        break
-            
-            if not matched:
-                highlighted_lines.append(original_line)
-        
-        # Criar HTML final
-        html_content = '<br>'.join(highlighted_lines)
-        
-        styled_html = f"""
-        <div style="
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            line-height: 1.4;
-            max-height: 400px;
-            overflow-y: auto;
-            padding: 15px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            background-color: #fafafa;
-            white-space: pre-wrap;
-        ">
-            <div style="margin-bottom: 10px; font-weight: bold; color: #333;">
-                📄 Texto Extraído com Destaques das Referências
-            </div>
-            <div style="margin-bottom: 15px; font-size: 11px; color: #666;">
-                <span style="background-color: #ff5722; padding: 2px;">■</span> Padrão 0 &nbsp;
-                <span style="background-color: #ffeb3b; padding: 2px;">■</span> Padrão 1 &nbsp;
-                <span style="background-color: #4caf50; padding: 2px;">■</span> Padrão 2 &nbsp;
-                <span style="background-color: #2196f3; padding: 2px;">■</span> Padrão 3 &nbsp;
-                <span style="background-color: #ff9800; padding: 2px;">■</span> Padrão 4 &nbsp;
-                <span style="background-color: #9c27b0; padding: 2px;">■</span> Padrão 5 &nbsp;
-                <span style="background-color: #e91e63; padding: 2px;">■</span> Padrão 6 &nbsp;
-                <span style="background-color: #795548; padding: 2px;">■</span> Padrão 7
-            </div>
-            {html_content}
-        </div>
-        """
-        
-        return styled_html
+        return text
         
     except Exception as e:
-        return f"<div style='color: red;'>Erro ao criar texto destacado: {str(e)}</div>"
+        return f"Erro ao processar texto: {str(e)}"
 
 def process_pdf(pdf_file, model_name):
     """Função principal que processa o PDF e retorna resultados"""
     if pdf_file is None:
-        return {"error": "Nenhum arquivo enviado"}, pd.DataFrame(), pd.DataFrame(), "❌ Nenhum arquivo enviado", "<div>Nenhum texto para exibir</div>"
+        return {"error": "Nenhum arquivo enviado"}, pd.DataFrame(), pd.DataFrame(), "❌ Nenhum arquivo enviado", "Nenhum texto para exibir"
     
     # Extrair texto do PDF
     text, metadata = extract_pdf_text(pdf_file)
     
     if text is None:
-        return metadata, pd.DataFrame(), pd.DataFrame(), "❌ Erro ao processar PDF", "<div style='color: red;'>Erro ao extrair texto</div>"
+        return metadata, pd.DataFrame(), pd.DataFrame(), "❌ Erro ao processar PDF", "Erro ao extrair texto"
     
     # Adicionar modelo selecionado aos metadados
     metadata["modelo_usado"] = model_name
@@ -308,8 +250,8 @@ def process_pdf(pdf_file, model_name):
     # Extrair referências com Regex
     regex_references = extract_references_with_regex(text)
     
-    # Criar HTML com destaques
-    highlighted_html = create_highlighted_text(text, regex_references)
+    # Criar texto simples
+    plain_text = create_plain_text(text, regex_references)
     
     # Converter para DataFrames
     if llm_references and not any("error" in ref for ref in llm_references):
@@ -328,7 +270,7 @@ def process_pdf(pdf_file, model_name):
     
     status = f"📊 **Resultados da Extração:**\n- LLM ({model_name}): {llm_count} referências\n- Regex: {regex_count} referências"
     
-    return metadata, llm_df, regex_df, status, highlighted_html
+    return metadata, llm_df, regex_df, status, plain_text
 
 def create_interface():
     """Cria a interface Gradio"""
@@ -364,8 +306,12 @@ def create_interface():
             with gr.Column():
                 metadata_output = gr.JSON(label="📋 Metadados do Artigo")
             with gr.Column():
-                extracted_text_output = gr.HTML(
-                    label="📄 Texto Extraído com Destaques",
+                extracted_text_output = gr.Textbox(
+                    label="📄 Texto Extraído",
+                    lines=20,
+                    max_lines=20,
+                    show_copy_button=True,
+                    interactive=False
                 )
         
         with gr.Row():
