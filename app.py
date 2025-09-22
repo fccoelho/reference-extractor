@@ -37,7 +37,31 @@ REFERENCE_PATTERNS = [
     r'^([A-Z][A-Za-z\s,&.-]+?&[A-Za-z\s,&.-]+?)\.\s*\((\d{4}[a-z]?)\)\.\s*([^.]+?)\.\s*([^.]+?)\.?\s*$',
     
     # Padrão 7: Referências numeradas [número] Autor: Título, Editora (ano)
-    r'^\[\d+\]\s*([A-Z][A-Za-z\s,&.-]+?):\s*([^,]+?),\s*([^(]+?)\s*\((\d{4})\)'
+    r'^\[\d+\]\s*([A-Z][A-Za-z\s,&.-]+?):\s*([^,]+?),\s*([^(]+?)\s*\((\d{4})\)',
+
+    # Padrão 8: Referências numeradas com DOI opcional
+r"""
+^              # início de linha (após possível marcador de ordem)
+(?:\d+\.\s*)?  # número da referência (opcional), seguido de ponto e espaço
+(?P<autores>   # grupo 'autores'
+  [^\.]+?      # tudo antes do primeiro ponto final (não guloso)
+)\.\s+
+(?P<titulo>    # grupo 'titulo'
+  [^\n\.]+     # até o próximo ponto final ou quebra de linha
+)\.
+\s*
+(?P<journal>   # grupo 'journal'
+  [^\n;]+      # até o próximo ponto e vírgula (ou quebra de linha)
+)
+[;,]?\s*
+(?P<ano>       # grupo 'ano'
+  \d{4}        # 4 dígitos (ano)
+)
+(?:;[^\n]*?)?  # volume, issue, páginas (opcional, não capturado)
+(?:\n+         # nova linha(s), captura DOI opcional
+  (?P<doi> https?://doi\.org/[^\s]+ )
+)?             # DOI pode estar na linha de baixo ou ausente
+"""
 ]
 
 class Reference(BaseModel):
@@ -102,7 +126,7 @@ def extract_references_with_llm(text, model_name):
             model_settings=ModelSettings(
                 timeout=30,
             ),
-            result_type=ReferencesResponse,
+            output_type=ReferencesResponse,
             system_prompt="""
             Você é um especialista em análise de artigos científicos. 
             Sua tarefa é identificar e extrair APENAS a seção de referências bibliográficas do texto fornecido.
@@ -131,7 +155,7 @@ def extract_references_with_llm(text, model_name):
         
         # Converter para lista de dicionários para compatibilidade com DataFrame
         references_list = []
-        for ref in result.data.references:
+        for ref in result.output.references:
             references_list.append({
                 "authors": ", ".join(ref.authors) if ref.authors else "",
                 "title": ref.title,
@@ -214,7 +238,8 @@ def extract_references_with_regex(text):
                         }
 
                         references.append(reference)
-        
+
+
         return references
         
     except Exception as e:
