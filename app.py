@@ -178,7 +178,7 @@ def extract_references_with_regex(text):
         
         # Processar cada padrão
         for pattern_index, pattern in enumerate(REFERENCE_PATTERNS):
-            reflist = re.findall(pattern, text, re.MULTILINE | re.UNICODE | re.DOTALL)
+            reflist = re.findall(pattern, text, re.MULTILINE | re.UNICODE | re.DOTALL| re.VERBOSE)
 
             if reflist:
                 for ref_match in reflist:
