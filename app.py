@@ -335,7 +335,7 @@ def create_interface():
                     label="📄 Texto Extraído",
                     lines=20,
                     max_lines=20,
-                    show_copy_button=True,
+                    buttons=['copy'],
                     interactive=False
                 )
         
@@ -344,16 +344,14 @@ def create_interface():
                 llm_references_output = gr.Dataframe(
                     label="🤖 Referências Extraídas por IA",
                     row_count=(10,'dynamic'),
-                    show_copy_button=True,
-                    show_fullscreen_button=True,
+                    buttons=['copy', 'fullscreen'],
                     wrap=True
                 )
             with gr.Column():
                 regex_references_output = gr.Dataframe(
                     label="🔍 Referências Extraídas por Regex",
                     row_count=(10,'dynamic'),
-                    show_copy_button=True,
-                    show_fullscreen_button=True,
+                    buttons=['copy', 'fullscreen'],
                     wrap=True
                 )
         
