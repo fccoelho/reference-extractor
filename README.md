@@ -10,5 +10,8 @@ pinned: false
 license: gpl-3.0
 short_description: Extract references from scientific papers
 ---
+# Reference Extractor
+This app tries to extract references from scientific papers, in PDF format.
+Give it a try [here](https://huggingface.co/spaces/fccoelho/reference_extractor).
 
 Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
